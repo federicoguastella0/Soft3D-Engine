@@ -2,6 +2,9 @@
 #include <stdint.h>
 #include <math.h>
 
+float angleX = 0;
+float angleY = 0;
+
 typedef struct p3 {
     float x, y, z;
 } p3;
@@ -32,13 +35,14 @@ void fade(SDL_Surface *surface) {
 }
 
 void create_model(void) {
-#if 1
+#if 0
     for (int j = 0; j < NUMPOINTS; j++) {
         Model[j].x = -150 + rand() % 300;
         Model[j].y = -150 + rand() % 300;
         Model[j].z = -150 + rand() % 300;
     }
 #else
+    // Generate a 3D surface
     int j = 0;
     for (float x = -50; x < 50; x++) {
         for (float z = -50; z <= 50; z++) {
@@ -69,37 +73,59 @@ void pixel(SDL_Surface *surface, int x, int y, int r, int g, int b) {
     fb[y * pitch + x * 4 + 3] = 255;
 }
 
-void rotate(float time) {
-    float alpha = (time * ((3.14*2)/60)) * 0.05;
+void rotate(void) {
+    float cosX = cos(angleX), sinX = sin(angleX);
+    float cosY = cos(angleY), sinY = sin(angleY);
+
     for (int j = 0; j < NUMPOINTS; j++) {
-        /* Rotation along the y axis is:
-         *
-         * x' =  x cosθ + z sinθ
-         * y' =  y
-         * z' = -x sinθ + z cosθ
-         */
-        Rotated[j].x = Model[j].x * cos(alpha) + Model[j].z * sin(alpha);
-        Rotated[j].y = Model[j].y;
-        Rotated[j].z = -Model[j].x * sin(alpha) +  Model[j].z * cos(alpha);
+        float x = Model[j].x;
+        float y = Model[j].y;
+        float z = Model[j].z;
+
+        //Rotation X
+        float x1 = x;
+        float y1 = y * cosX - z*sinX;
+        float z1 = y * sinX + z*cosX;
+
+        //Rotation Y
+        float x2 = x1 * cosY + z1 * sinY;
+        float y2 = y1;
+        float z2 = -x1 * sinY + z1 * cosY;
+
+        Rotated[j].x = x2;
+        Rotated[j].y = y2;
+        Rotated[j].z = z2;
     }
 }
 
-void draw(SDL_Surface *surface, float time) {
+void draw(SDL_Surface *surface) {
     int width = surface->w;
     int height = surface->h;
 
     float cx = (float)width / 2;
     float cy = (float)height / 2;
 
-    rotate(time);
+    rotate();
 
     fade(surface);
-    clear(surface);
+    //clear(surface);
     for (int j = 0; j < NUMPOINTS; j++) {
         float zfactor = 1 + (Rotated[j].z / 300);
         float x = Rotated[j].x / zfactor;
         float y = Rotated[j].y / zfactor;
-        pixel(surface,round(cx+x),round(cy+y),255,255,255);
+
+        // Color based on depth (z value)
+        float current_y = Model[j].y;
+        float norm = current_y / 80.0f;
+        // Normalize norm to be between 0 and 1 and calculate gradient
+        if(norm < 0.0f) norm = 0.0f;
+        if(norm > 1.0f) norm = 1.0f;
+
+        norm = 1.0f - norm;
+        int r = 30 + (int)(norm * (255-30));
+        int g = 160 + (int)(norm * (255-160));
+        int b = 30 + (int)(norm * (255-30));
+        pixel(surface,round(cx+x),round(cy+y),r,g,b);
     }
 }
 
@@ -138,7 +164,7 @@ int main(int argc, char* argv[]) {
     int running = 1;
     float time = 0;
     while(running) {
-        draw(surface,time);
+        draw(surface);
         SDL_UpdateWindowSurface(window);
         time += 1;
 
@@ -147,6 +173,27 @@ int main(int argc, char* argv[]) {
         while (SDL_PollEvent(&event)) {
             if (event.type == SDL_QUIT) {
                 running = 0;
+            }
+            else if (event.type == SDL_KEYDOWN) {
+                switch (event.key.keysym.sym) {
+                    case SDLK_ESCAPE:
+                        running = false; // Esci premendo ESC
+                        break;
+                    case SDLK_UP:
+                        angleX += 0.05f; // Ruota verso l'alto
+                        break;
+                    case SDLK_DOWN:
+                        angleX -= 0.05f; // Ruota verso il basso
+                        break;
+                    case SDLK_LEFT:
+                        angleY -= 0.05f; // Ruota a sinistra
+                        break;
+                    case SDLK_RIGHT:
+                        angleY += 0.05f; // Ruota a destra
+                        break;
+                    default:
+                        break;
+                }
             }
         }
         SDL_Delay(16);
