@@ -6,4 +6,5 @@
 .vscode/
 .vs/
 build/
-bin/
+bin/.points.c.swp
+points
